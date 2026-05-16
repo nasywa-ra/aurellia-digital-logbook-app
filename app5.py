@@ -642,30 +642,37 @@ else:
             else: st.info("Belum ada logbook tahap akhir yang masuk.")
 
     # ==========================================
-    # GLOBAL: WINDOW PREVIEW PDF (IN-WEB)
+    # GLOBAL: WINDOW PREVIEW PDF (TAB BARU - ANTI BLOKIR CHROME)
     # ==========================================
     if st.session_state.get('preview_pdf') is not None:
         st.markdown("---")
-        st.subheader("👁️ Preview Dokumen Internal")
+        st.subheader("👁️ Kontrol Dokumen")
         
-        col1, col2 = st.columns([1, 5])
+        col1, col2, col3 = st.columns([1.5, 1.5, 4])
+        
+        # 1. Ambil data bytes PDF
+        pdf_bytes = st.session_state['preview_pdf'].getvalue()
+        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+        
         with col1:
-            st.download_button("📥 Unduh (Simpan ke Device)", data=st.session_state['preview_pdf'].getvalue(), file_name=st.session_state['preview_filename'], type="primary")
+            st.download_button("📥 Unduh (.pdf)", data=pdf_bytes, file_name=st.session_state['preview_filename'], type="primary")
+        
         with col2:
-            if st.button("✖ Tutup Jendela Preview", key="tutup_preview_global"):
+            # Trik Sakti: Membuat tombol HTML yang membuka PDF di Tab Baru
+            new_tab_html = f'''
+            <a href="data:application/pdf;base64,{base64_pdf}" target="_blank" style="text-decoration: none;">
+                <button style="background-color: #03a9f4; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; height: 38px;">
+                    🔗 Buka di Tab Baru
+                </button>
+            </a>
+            '''
+            st.markdown(new_tab_html, unsafe_allow_html=True)
+            
+        with col3:
+            if st.button("✖ Tutup Kontrol", key="tutup_preview_global"):
                 st.session_state['preview_pdf'] = None
                 st.rerun()
+                
+        # Berikan pesan petunjuk yang ramah untuk pengguna
+        st.info("💡 **Petunjuk:** Klik tombol **🔗 Buka di Tab Baru** di atas untuk melihat preview lembar logbook A4 secara penuh dan menandatanganinya dengan aman.")
         
-        # PERBAIKAN DI SINI: Ditambahkan sandbox attribute dan pemanggilan bytes data yang tepat
-        base64_pdf = base64.b64encode(st.session_state['preview_pdf'].getvalue()).decode('utf-8')
-        pdf_display = f'''
-        <iframe 
-            src="data:application/pdf;base64,{base64_pdf}" 
-            width="100%" 
-            height="900" 
-            type="application/pdf" 
-            sandbox="allow-scripts allow-same-origin allow-downloads"
-            style="border:2px solid #81c784; border-radius:8px;">
-        </iframe>
-        '''
-        st.markdown(pdf_display, unsafe_allow_html=True)
