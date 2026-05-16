@@ -360,7 +360,6 @@ else:
             ds_names = ["-- Pilih Dosen --"] + [n.strip() for n in (d_lists[1] or "").split('\n') if n.strip()]
 
             if len(drafts) > 0:
-                # REVISI: Menghapus kolom komentar evaluasi di halaman riwayat agar pas dengan lebar layar
                 h_cols = st.columns([0.5, 1.8, 1.5, 1.2, 1, 1.5, 1.5, 1.5, 1.5])
                 headers = ["No", "Hari, Tgl", "Matkul", "Ruangan", "Preview", "Pilih CI", "Pilih Dosen", "Status", "Aksi"]
                 for i, col in enumerate(h_cols): col.markdown(f"<div class='header-col'>{headers[i]}</div>", unsafe_allow_html=True)
@@ -376,10 +375,11 @@ else:
                         ci_data = get_user_data(saved_ci, "Pembimbing Klinik (CI)")
                         dsn_data = get_user_data(saved_dosen, "Dosen")
                         pdf_buf = generate_pdf(st.session_state['nama'], st.session_state['nim_nip'], tgl, mk, rg, hk, pd.DataFrame(json.loads(k_json)), kasus=kas, 
-                                           nama_ci=saved_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
-                                           nama_dosen=saved_dosen, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
+                                               nama_ci=saved_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
+                                               nama_dosen=saved_dosen, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
                         st.session_state['preview_pdf'] = pdf_buf
                         st.session_state['preview_filename'] = f"Logbook_{mk}.pdf"
+                        st.rerun()
                     
                     idx_ci = ci_names.index(saved_ci) if saved_ci in ci_names else 0
                     idx_ds = ds_names.index(saved_dosen) if saved_dosen in ds_names else 0
@@ -417,7 +417,6 @@ else:
                     l_id, tgl, mk, rg, hk, keg_json, kas, n_ci, n_ds, km_ci, km_ds = row
                     st.write(f"**{i+1}. {tgl} - {mk}**")
                     
-                    # REVISI: Membuat visualisasi kotak tabel 2 baris 2 kolom berwarna putih dengan tulisan hitam untuk komentar
                     html_box_final = f"""
                     <table class="table-komen">
                         <tr>
@@ -436,10 +435,11 @@ else:
                         ci_data = get_user_data(n_ci, "Pembimbing Klinik (CI)")
                         dsn_data = get_user_data(n_ds, "Dosen")
                         pdf_buf = generate_pdf(st.session_state['nama'], st.session_state['nim_nip'], tgl, mk, rg, hk, pd.DataFrame(json.loads(keg_json)), kasus=kas, 
-                                           nama_ci=n_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
-                                           nama_dosen=n_ds, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
+                                               nama_ci=n_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
+                                               nama_dosen=n_ds, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
                         st.session_state['preview_pdf'] = pdf_buf
                         st.session_state['preview_filename'] = f"Final_{tgl}.pdf"
+                        st.rerun()
                     st.markdown("---")
             else: st.info("Belum ada.")
         
@@ -465,14 +465,15 @@ else:
                             ci_data = get_user_data(n_ci, "Pembimbing Klinik (CI)")
                             dsn_data = get_user_data(n_ds, "Dosen")
                             pdf_buf = generate_pdf(st.session_state['nama'], st.session_state['nim_nip'], tgl, mk, rg, hk, pd.DataFrame(json.loads(keg_json)), kasus=kas, 
-                                           nama_ci=n_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
-                                           nama_dosen=n_ds, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
+                                                   nama_ci=n_ci, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
+                                                   nama_dosen=n_ds, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
                             merger.append(pdf_buf)
                         merged_buffer = BytesIO()
                         merger.write(merged_buffer); merged_buffer.seek(0)
                         
                         st.session_state['preview_pdf'] = merged_buffer
                         st.session_state['preview_filename'] = f"Rekap_Logbook.pdf"
+                        st.rerun()
             else: st.info("Anda belum memiliki logbook tervalidasi yang dapat dieksport.")
 
     # ==========================================
@@ -540,7 +541,6 @@ else:
                             st.session_state['preview_filename'] = f"Draft_{m_nama}.pdf"
                             st.rerun()
                         
-                        # REVISI TEXT INPUT: Mengubah placeholder dan label teks
                         komen_ci_input = st.text_area("Tambahkan Komentar/Catatan untuk Mahasiswa:", value=existing_komen if existing_komen else "", disabled=sudah_valid, key=f"txt_ci_{l_id}")
                         is_valid = st.checkbox("Saya menyatakan data logbook ini valid", value=sudah_valid, disabled=sudah_valid, key=f"val_{l_id}")
                         st.markdown(f"**Dosen Tujuan Penerusan:** {nd}")
@@ -619,15 +619,14 @@ else:
                         
                         ci_data = get_user_data(nc, "Pembimbing Klinik (CI)")
                         pdf_buf = generate_pdf(m_nama, m_nim, tgl, mk, rg, hk, pd.DataFrame(json.loads(k_json)), kasus=kas, 
-                                           nama_ci=nc, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
-                                           nama_dosen=st.session_state['nama'], nip_dosen=dsn_info[1], ttd_dosen=dsn_info[0])
+                                               nama_ci=nc, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
+                                               nama_dosen=st.session_state['nama'], nip_dosen=dsn_info[1], ttd_dosen=dsn_info[0])
                         
                         if st.button("👁️ Tinjau Lembar Berkas TTD CI", key=f"btn_ds_p_{l_id}"):
                             st.session_state['preview_pdf'] = pdf_buf
                             st.session_state['preview_filename'] = f"Akhir_{m_nama}.pdf"
                             st.rerun()
                             
-                        # REVISI TEXT INPUT & REVISI PERNYATAAN VALIDASI DOSEN
                         komen_dosen_input = st.text_area("Tambahkan Komentar/Catatan untuk Mahasiswa:", value=existing_kdosen if existing_kdosen else "", disabled=sudah_selesai, key=f"txt_dsn_{l_id}")
                         is_valid = st.checkbox("Saya menyatakan data logbook ini valid", value=sudah_selesai, disabled=sudah_selesai, key=f"val_ds_{l_id}")
                         
@@ -651,13 +650,22 @@ else:
         
         col1, col2 = st.columns([1, 5])
         with col1:
-            st.download_button("📥 Unduh (Simpan ke Device)", data=st.session_state['preview_pdf'], file_name=st.session_state['preview_filename'], type="primary")
+            st.download_button("📥 Unduh (Simpan ke Device)", data=st.session_state['preview_pdf'].getvalue(), file_name=st.session_state['preview_filename'], type="primary")
         with col2:
             if st.button("✖ Tutup Jendela Preview", key="tutup_preview_global"):
                 st.session_state['preview_pdf'] = None
                 st.rerun()
         
+        # PERBAIKAN DI SINI: Ditambahkan sandbox attribute dan pemanggilan bytes data yang tepat
         base64_pdf = base64.b64encode(st.session_state['preview_pdf'].getvalue()).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900" type="application/pdf" style="border:2px solid #81c784; border-radius:8px;"></iframe>'
+        pdf_display = f'''
+        <iframe 
+            src="data:application/pdf;base64,{base64_pdf}" 
+            width="100%" 
+            height="900" 
+            type="application/pdf" 
+            sandbox="allow-scripts allow-same-origin allow-downloads"
+            style="border:2px solid #81c784; border-radius:8px;">
+        </iframe>
+        '''
         st.markdown(pdf_display, unsafe_allow_html=True)
-        
