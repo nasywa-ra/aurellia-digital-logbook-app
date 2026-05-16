@@ -33,6 +33,28 @@ st.markdown("""
     .bg-ci { background-color: #ff9800; }
     .bg-dsn { background-color: #03a9f4; }
     .bg-selesai { background-color: #4caf50; }
+    
+    /* Style custom Kotak Catatan Reviewers di Menu Tervalidasi */
+    .table-komen {
+        width: 100%;
+        background-color: #ffffff;
+        border-collapse: collapse;
+        margin-top: 8px;
+        margin-bottom: 15px;
+        border: 1px solid #dee2e6;
+    }
+    .table-komen td {
+        padding: 10px 15px;
+        border: 1px solid #dee2e6;
+        color: #212529 !important;
+        font-size: 14px;
+        vertical-align: top;
+    }
+    .role-label {
+        font-weight: bold;
+        background-color: #f8f9fa;
+        width: 200px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -49,7 +71,8 @@ def create_tables():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, password TEXT, role TEXT, nama TEXT, nim_nip TEXT, daftar_ci TEXT, daftar_dosen TEXT, ttd_image TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS logbooks
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, tanggal TEXT, matkul TEXT, ruangan TEXT, 
-                 hari_ke INTEGER, kegiatan_json TEXT, kasus TEXT, status TEXT, nama_ci_terpilih TEXT, nama_dosen_terpilih TEXT, created_at TEXT)''')
+                 hari_ke INTEGER, kegiatan_json TEXT, kasus TEXT, status TEXT, nama_ci_terpilih TEXT, nama_dosen_terpilih TEXT, created_at TEXT,
+                 komen_ci TEXT, komen_dosen TEXT)''')
     conn.commit()
 
 create_tables()
@@ -64,11 +87,9 @@ def generate_pdf(nama, nim, tanggal_str, matkul, ruangan, hari_ke, kegiatan_df, 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name='TitleStyle', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=14, alignment=TA_CENTER, spaceAfter=20)
     
-    # REVISI 5: Judul Diubah
     elements.append(Paragraph("<u>LOGBOOK PRAKTIK KLINIK</u>", title_style))
     elements.append(Spacer(1, 10))
     
-    # REVISI 6: Hari, Tanggal
     data_diri = [
         ["Nama Mahasiswa", ":", nama], ["NIM", ":", nim],
         ["Hari, Tanggal", ":", tanggal_str], ["Mata Kuliah", ":", matkul],
@@ -79,7 +100,6 @@ def generate_pdf(nama, nim, tanggal_str, matkul, ruangan, hari_ke, kegiatan_df, 
     elements.append(t_diri)
     elements.append(Spacer(1, 15))
     
-    # REVISI 3: Auto Wrap/Enter untuk Tabel Kegiatan
     kegiatan_data = [["Jam (WIB)", "Kegiatan", "Keterangan"]]
     cell_style = ParagraphStyle(name='CellStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=12)
     
@@ -87,7 +107,6 @@ def generate_pdf(nama, nim, tanggal_str, matkul, ruangan, hari_ke, kegiatan_df, 
         if pd.isna(row['Jam']) and pd.isna(row['Kegiatan']) and pd.isna(row['Keterangan']): continue
         jam_str = str(row['Jam'])[:5] if not pd.isna(row['Jam']) and str(row['Jam']).strip() not in ["", "None", "NaT"] else ""
         
-        # Mengubah teks menjadi objek Paragraph agar bisa auto-enter
         keg_val = str(row['Kegiatan']).replace('\n', '<br/>') if not pd.isna(row['Kegiatan']) else ""
         ket_val = str(row['Keterangan']).replace('\n', '<br/>') if not pd.isna(row['Keterangan']) else ""
         
@@ -127,7 +146,6 @@ def generate_pdf(nama, nim, tanggal_str, matkul, ruangan, hari_ke, kegiatan_df, 
     teks_nama_dsn = f"<u>{nama_dosen}</u>" if nama_dosen else "________________________"
     teks_nip_dsn = f"NIP/NIK: {nip_dosen}" if nip_dosen else "NIP/NIK: ...................."
 
-    # REVISI 4: Mengetahui di Center (Span 2 Kolom)
     ttd_data = [
         [Paragraph("Mengetahui,", ParagraphStyle(name='c_top', alignment=TA_CENTER)), ""], 
         [Paragraph("Pembimbing Klinik", ParagraphStyle(name='c_mid', alignment=TA_CENTER)), Paragraph("Pembimbing Akademik", ParagraphStyle(name='c_mid', alignment=TA_CENTER))], 
@@ -138,7 +156,7 @@ def generate_pdf(nama, nim, tanggal_str, matkul, ruangan, hari_ke, kegiatan_df, 
     
     t_ttd = Table(ttd_data, colWidths=[250, 250])
     t_ttd.setStyle(TableStyle([
-        ('SPAN', (0,0), (1,0)), # Menggabungkan sel kolom "Mengetahui" agar di tengah
+        ('SPAN', (0,0), (1,0)), 
         ('ALIGN', (0,0), (-1,-1), 'CENTER'), 
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 5)
@@ -173,10 +191,7 @@ if not st.session_state['logged_in']:
         with st.form("register_form"):
             st.subheader("Buat Akun Baru")
             email = st.text_input("Email Aktif")
-            
-            # REVISI 1: Maksimal 8 Karakter (Secara fisik dibatasi)
             password = st.text_input("Kata Sandi (Maks 8 Karakter)", type="password", max_chars=8)
-            
             role = st.selectbox("Peran", ["Mahasiswa", "Dosen", "Pembimbing Klinik (CI)"])
             nama = st.text_input("Nama Lengkap")
             nim_nip = st.text_input("NIM (Mahasiswa) / NIP/NIK (Dosen/CI)")
@@ -192,10 +207,23 @@ if not st.session_state['logged_in']:
                 with col2: daftar_dosen_input = st.text_area("Daftar Nama Dosen (Pisahkan dgn Enter):", placeholder="Dr. Andi Rahman\nNs. Sari Indah")
 
             if st.form_submit_button("Daftar"):
-                c.execute('INSERT INTO users (email, password, role, nama, nim_nip, daftar_ci, daftar_dosen, ttd_image) VALUES (?,?,?,?,?,?,?,?)', 
-                          (email, password, role, nama, nim_nip, daftar_ci_input, daftar_dosen_input, ""))
-                conn.commit()
-                st.success("Berhasil mendaftar! Silakan Masuk (Login).")
+                c.execute('SELECT id FROM users WHERE email=?', (email,))
+                existing_email = c.fetchone()
+                
+                c.execute('SELECT id FROM users WHERE nama=?', (nama,))
+                existing_nama = c.fetchone()
+                
+                if existing_email:
+                    st.error("❌ Gagal: Email tersebut sudah digunakan oleh pengguna lain! Silakan gunakan email lain.")
+                elif existing_nama:
+                    st.error("❌ Gagal: Nama Lengkap tersebut sudah terdaftar di sistem! Mohon gunakan nama lengkap unik / tambahkan gelar.")
+                elif not email or not password or not nama:
+                    st.warning("⚠️ Mohon lengkapi kolom Email, Kata Sandi, dan Nama Lengkap.")
+                else:
+                    c.execute('INSERT INTO users (email, password, role, nama, nim_nip, daftar_ci, daftar_dosen, ttd_image) VALUES (?,?,?,?,?,?,?,?)', 
+                              (email, password, role, nama, nim_nip, daftar_ci_input, daftar_dosen_input, ""))
+                    conn.commit()
+                    st.success("🎉 Berhasil mendaftar! Silakan beralih ke menu Masuk (Login).")
 
     elif menu == "Masuk (Login)":
         with st.form("login_form"):
@@ -248,10 +276,17 @@ else:
                 if st.form_submit_button("Simpan Data Profil"):
                     new_ci_str = "\n".join([str(n).strip() for n in edited_ci["Nama CI"].dropna().tolist() if str(n).strip()])
                     new_dosen_str = "\n".join([str(n).strip() for n in edited_dosen["Nama Dosen"].dropna().tolist() if str(n).strip()])
-                    c.execute("UPDATE users SET nama=?, nim_nip=?, daftar_ci=?, daftar_dosen=? WHERE id=?", (nama_baru, nim_baru, new_ci_str, new_dosen_str, st.session_state['user_id']))
-                    conn.commit()
-                    st.session_state['nama'], st.session_state['nim_nip'] = nama_baru, nim_baru
-                    st.success("Profil berhasil diperbarui!")
+                    
+                    c.execute('SELECT id FROM users WHERE nama=? AND id!=?', (nama_baru, st.session_state['user_id']))
+                    nama_terpakai = c.fetchone()
+                    
+                    if nama_terpakai:
+                        st.error("❌ Gagal update: Nama Lengkap tersebut sudah terdaftar pada pengguna lain!")
+                    else:
+                        c.execute("UPDATE users SET nama=?, nim_nip=?, daftar_ci=?, daftar_dosen=? WHERE id=?", (nama_baru, nim_baru, new_ci_str, new_dosen_str, st.session_state['user_id']))
+                        conn.commit()
+                        st.session_state['nama'], st.session_state['nim_nip'] = nama_baru, nim_baru
+                        st.success("Profil berhasil diperbarui!")
 
         elif pilihan_menu == "📝 Pengisian Logbook":
             st.title("📚 Pengisian Logbook Praktik")
@@ -325,6 +360,7 @@ else:
             ds_names = ["-- Pilih Dosen --"] + [n.strip() for n in (d_lists[1] or "").split('\n') if n.strip()]
 
             if len(drafts) > 0:
+                # REVISI: Menghapus kolom komentar evaluasi di halaman riwayat agar pas dengan lebar layar
                 h_cols = st.columns([0.5, 1.8, 1.5, 1.2, 1, 1.5, 1.5, 1.5, 1.5])
                 headers = ["No", "Hari, Tgl", "Matkul", "Ruangan", "Preview", "Pilih CI", "Pilih Dosen", "Status", "Aksi"]
                 for i, col in enumerate(h_cols): col.markdown(f"<div class='header-col'>{headers[i]}</div>", unsafe_allow_html=True)
@@ -336,7 +372,7 @@ else:
                     
                     r_cols[0].write(str(i+1)); r_cols[1].write(tgl); r_cols[2].write(mk); r_cols[3].write(rg)
                     
-                    if r_cols[4].button("👁️ Preview", key=f"prev_mhs_{l_id}"):
+                    if r_cols[4].button("👁️ Cek", key=f"prev_mhs_{l_id}"):
                         ci_data = get_user_data(saved_ci, "Pembimbing Klinik (CI)")
                         dsn_data = get_user_data(saved_dosen, "Dosen")
                         pdf_buf = generate_pdf(st.session_state['nama'], st.session_state['nim_nip'], tgl, mk, rg, hk, pd.DataFrame(json.loads(k_json)), kasus=kas, 
@@ -369,17 +405,32 @@ else:
                             if st.button("Batal Kirim ✖", key=f"btl_{l_id}"):
                                 c.execute("UPDATE logbooks SET status='Draft' WHERE id=?", (l_id,)); conn.commit(); st.rerun()
                         else:
-                            st.markdown("<span style='color:grey; font-size:12px;'>Dikunci</span>", unsafe_allow_html=True)
+                            st.markdown("<span style='color:grey; font-size:12px;'>Sesi Terkunci</span>", unsafe_allow_html=True)
             else: st.info("Tidak ada logbook tersimpan.")
 
         elif pilihan_menu == "✅ Logbook Tervalidasi":
             st.title("✅ Logbook Tervalidasi")
-            c.execute("SELECT id, tanggal, matkul, ruangan, hari_ke, kegiatan_json, kasus, nama_ci_terpilih, nama_dosen_terpilih FROM logbooks WHERE user_id=? AND status='Selesai'", (st.session_state['user_id'],))
+            c.execute("SELECT id, tanggal, matkul, ruangan, hari_ke, kegiatan_json, kasus, nama_ci_terpilih, nama_dosen_terpilih, komen_ci, komen_dosen FROM logbooks WHERE user_id=? AND status='Selesai'", (st.session_state['user_id'],))
             selesai_data = c.fetchall()
             if len(selesai_data) > 0:
                 for i, row in enumerate(selesai_data):
-                    l_id, tgl, mk, rg, hk, keg_json, kas, n_ci, n_ds = row
-                    st.write(f"{i+1}. {tgl} - {mk}")
+                    l_id, tgl, mk, rg, hk, keg_json, kas, n_ci, n_ds, km_ci, km_ds = row
+                    st.write(f"**{i+1}. {tgl} - {mk}**")
+                    
+                    # REVISI: Membuat visualisasi kotak tabel 2 baris 2 kolom berwarna putih dengan tulisan hitam untuk komentar
+                    html_box_final = f"""
+                    <table class="table-komen">
+                        <tr>
+                            <td class="role-label">Pembimbing Klinik (CI)</td>
+                            <td>{km_ci if km_ci else '-'}</td>
+                        </tr>
+                        <tr>
+                            <td class="role-label">Dosen Akademik</td>
+                            <td>{km_ds if km_ds else '-'}</td>
+                        </tr>
+                    </table>
+                    """
+                    st.markdown(html_box_final, unsafe_allow_html=True)
                     
                     if st.button(f"👁️ Preview Logbook {i+1}", key=f"prev_selesai_{l_id}"):
                         ci_data = get_user_data(n_ci, "Pembimbing Klinik (CI)")
@@ -389,6 +440,7 @@ else:
                                            nama_dosen=n_ds, nip_dosen=dsn_data[0] if dsn_data else "", ttd_dosen=dsn_data[1] if dsn_data else None)
                         st.session_state['preview_pdf'] = pdf_buf
                         st.session_state['preview_filename'] = f"Final_{tgl}.pdf"
+                    st.markdown("---")
             else: st.info("Belum ada.")
         
         elif pilihan_menu == "🗂️ Eksport Dokumen":
@@ -441,13 +493,18 @@ else:
                 nama_baru = st.text_input("Nama Lengkap", value=data_profil[0])
                 nip_baru = st.text_input("NIP/NIK", value=data_profil[1])
                 st.markdown("**Unggah Tanda Tangan Digital**")
-                if data_profil[2]: st.success("✓ Anda sudah mengunggah Tanda Tangan Digital. Unggah file baru di bawah ini jika ingin menggantinya.")
+                if data_profil[2]: st.success("✓ Anda sudah mengunggah Tanda Tangan Digital.")
                 else: st.warning("⚠ Anda belum mengunggah Tanda Tangan Digital.")
                 
                 ttd_file = st.file_uploader("Pilih File Gambar TTD (Maksimal 1 file, ukuran maks 2MB, format PNG transparan disarankan)", type=['png', 'jpg', 'jpeg'], accept_multiple_files=False)
                 
                 if st.form_submit_button("Simpan Profil & TTD"):
-                    if ttd_file and ttd_file.size > 2 * 1024 * 1024:
+                    c.execute('SELECT id FROM users WHERE nama=? AND id!=?', (nama_baru, st.session_state['user_id']))
+                    nama_terpakai = c.fetchone()
+                    
+                    if nama_terpakai:
+                        st.error("❌ Gagal update: Nama Lengkap tersebut sudah terdaftar pada pengguna lain!")
+                    elif ttd_file and ttd_file.size > 2 * 1024 * 1024:
                         st.error("Gagal: Ukuran file gambar melebih 2MB. Silakan perkecil ukuran gambar Anda.")
                     else:
                         ttd_base64 = data_profil[2]
@@ -463,47 +520,42 @@ else:
             c.execute("SELECT ttd_image, nim_nip FROM users WHERE id=?", (st.session_state['user_id'],))
             ci_info = c.fetchone()
             
-            query_ci = """SELECT l.id, u.nama, u.nim_nip, l.tanggal, l.created_at, l.matkul, l.ruangan, l.hari_ke, l.kegiatan_json, l.kasus, l.nama_dosen_terpilih, l.status 
+            query_ci = """SELECT l.id, u.nama, u.nim_nip, l.tanggal, l.created_at, l.matkul, l.ruangan, l.hari_ke, l.kegiatan_json, l.kasus, l.nama_dosen_terpilih, l.status, l.komen_ci 
                           FROM logbooks l JOIN users u ON l.user_id = u.id 
                           WHERE l.status IN ('Menunggu CI', 'Menunggu Dosen', 'Selesai') AND l.nama_ci_terpilih=? ORDER BY l.created_at DESC"""
             c.execute(query_ci, (st.session_state['nama'],))
             tugas_ci = c.fetchall()
             
             if len(tugas_ci) > 0:
-                h_cols = st.columns([0.5, 2, 2, 1.5, 1.5, 2, 1.5])
-                headers = ["No", "Nama Mahasiswa", "Tanggal File & Jam", "Preview File", "Validasi", "Dosen Tujuan", "Aksi Kirim"]
-                for i, col in enumerate(h_cols): col.markdown(f"<div class='header-col'>{headers[i]}</div>", unsafe_allow_html=True)
-                
                 for i, row in enumerate(tugas_ci):
-                    l_id, m_nama, m_nim, tgl, waktu_kirim, mk, rg, hk, k_json, kas, nd, stat = row
+                    l_id, m_nama, m_nim, tgl, waktu_kirim, mk, rg, hk, k_json, kas, nd, stat, existing_komen = row
                     sudah_valid = stat != 'Menunggu CI'
                     
-                    r_cols = st.columns([0.5, 2, 2, 1.5, 1.5, 2, 1.5])
-                    r_cols[0].write(str(i+1)); r_cols[1].write(m_nama)
-                    
-                    try: jam_masuk = datetime.strptime(waktu_kirim, '%Y-%m-%d %H:%M:%S').strftime('%H:%M WIB')
-                    except: jam_masuk = "Waktu tidak diketahui"
-                    r_cols[2].write(f"{tgl}\n{jam_masuk}")
-                    
-                    if r_cols[3].button("👁️ Cek", key=f"cek_ci_{l_id}"):
+                    with st.expander(f"📁 [{stat}] {i+1}. Mahasiswa: {m_nama} | Matkul: {mk} ({tgl})"):
+                        st.markdown(f"**NIM:** {m_nim} | **Ruangan:** {rg} | **Hari Ke-:** {hk}")
+                        
                         pdf_buf = generate_pdf(m_nama, m_nim, tgl, mk, rg, hk, pd.DataFrame(json.loads(k_json)), kasus=kas, nama_ci=st.session_state['nama'], nip_ci=ci_info[1], ttd_ci=ci_info[0])
-                        st.session_state['preview_pdf'] = pdf_buf
-                        st.session_state['preview_filename'] = f"Draft_{m_nama}.pdf"
-                    
-                    is_valid = r_cols[4].checkbox("Ya (Valid)", value=sudah_valid, disabled=sudah_valid, key=f"val_{l_id}")
-                    r_cols[5].markdown(f"<div style='margin-top:10px; color:#1976d2;'><b>{nd}</b></div>", unsafe_allow_html=True)
-                    
-                    with r_cols[6]:
+                        if st.button("👁️ Tinjau Lembar PDF", key=f"btn_ci_p_{l_id}"):
+                            st.session_state['preview_pdf'] = pdf_buf
+                            st.session_state['preview_filename'] = f"Draft_{m_nama}.pdf"
+                            st.rerun()
+                        
+                        # REVISI TEXT INPUT: Mengubah placeholder dan label teks
+                        komen_ci_input = st.text_area("Tambahkan Komentar/Catatan untuk Mahasiswa:", value=existing_komen if existing_komen else "", disabled=sudah_valid, key=f"txt_ci_{l_id}")
+                        is_valid = st.checkbox("Saya menyatakan data logbook ini valid", value=sudah_valid, disabled=sudah_valid, key=f"val_{l_id}")
+                        st.markdown(f"**Dosen Tujuan Penerusan:** {nd}")
+                        
                         if stat == 'Menunggu CI':
-                            if st.button("Teruskan ➔", type="primary", key=f"kirim_{l_id}"):
-                                if not is_valid: st.error("Ceklis 'Ya (Valid)'!")
+                            if st.button("Validasi & Teruskan ke Dosen ➔", type="primary", key=f"kirim_{l_id}"):
+                                if not is_valid: st.error("Anda harus menyetujui pernyataan validasi!")
                                 else:
-                                    c.execute("UPDATE logbooks SET status='Menunggu Dosen' WHERE id=?", (l_id,)); conn.commit(); st.rerun()
+                                    c.execute("UPDATE logbooks SET status='Menunggu Dosen', komen_ci=? WHERE id=?", (komen_ci_input, l_id))
+                                    conn.commit(); st.success("Logbook berhasil diteruskan!"); st.rerun()
                         elif stat == 'Menunggu Dosen':
-                            if st.button("Batal Kirim ✖", key=f"btl_ci_{l_id}"):
+                            if st.button("Batal Validasi & Tarik Berkas ✖", key=f"btl_ci_{l_id}"):
                                 c.execute("UPDATE logbooks SET status='Menunggu CI' WHERE id=?", (l_id,)); conn.commit(); st.rerun()
                         else:
-                            st.success("Tuntas")
+                            st.success("Logbook telah diselesaikan pada tingkat verifikasi akhir.")
             else: st.info("Belum ada logbook mahasiswa yang masuk.")
 
     # ==========================================
@@ -530,7 +582,12 @@ else:
                 ttd_file = st.file_uploader("Pilih File Gambar TTD (Maksimal 1 file, ukuran maks 2MB, format PNG transparan disarankan)", type=['png', 'jpg', 'jpeg'], accept_multiple_files=False)
                 
                 if st.form_submit_button("Simpan Profil & TTD"):
-                    if ttd_file and ttd_file.size > 2 * 1024 * 1024:
+                    c.execute('SELECT id FROM users WHERE nama=? AND id!=?', (nama_baru, st.session_state['user_id']))
+                    nama_terpakai = c.fetchone()
+                    
+                    if nama_terpakai:
+                        st.error("❌ Gagal update: Nama Lengkap tersebut sudah terdaftar pada pengguna lain!")
+                    elif ttd_file and ttd_file.size > 2 * 1024 * 1024:
                         st.error("Gagal: Ukuran file gambar melebih 2MB. Silakan perkecil ukuran gambar Anda.")
                     else:
                         ttd_base64 = data_profil[2]
@@ -546,46 +603,42 @@ else:
             c.execute("SELECT ttd_image, nim_nip FROM users WHERE id=?", (st.session_state['user_id'],))
             dsn_info = c.fetchone()
             
-            query_dosen = """SELECT l.id, u.nama, u.nim_nip, l.tanggal, l.created_at, l.matkul, l.ruangan, l.hari_ke, l.kegiatan_json, l.kasus, l.nama_ci_terpilih, l.status 
+            query_dosen = """SELECT l.id, u.nama, u.nim_nip, l.tanggal, l.created_at, l.matkul, l.ruangan, l.hari_ke, l.kegiatan_json, l.kasus, l.nama_ci_terpilih, l.status, l.komen_dosen 
                              FROM logbooks l JOIN users u ON l.user_id = u.id 
                              WHERE l.status IN ('Menunggu Dosen', 'Selesai') AND l.nama_dosen_terpilih=? ORDER BY l.created_at DESC"""
             c.execute(query_dosen, (st.session_state['nama'],))
             tugas_dosen = c.fetchall()
             
             if len(tugas_dosen) > 0:
-                h_cols = st.columns([0.5, 2, 2.5, 2, 1.5, 1.5])
-                headers = ["No", "Nama Mahasiswa", "Tanggal Masuk & Jam", "Preview TTD CI", "Validasi", "Aksi Kirim"]
-                for i, col in enumerate(h_cols): col.markdown(f"<div class='header-col'>{headers[i]}</div>", unsafe_allow_html=True)
-                
                 for i, row in enumerate(tugas_dosen):
-                    l_id, m_nama, m_nim, tgl, waktu_kirim, mk, rg, hk, k_json, kas, nc, stat = row
+                    l_id, m_nama, m_nim, tgl, waktu_kirim, mk, rg, hk, k_json, kas, nc, stat, existing_kdosen = row
                     sudah_selesai = stat == 'Selesai'
                     
-                    r_cols = st.columns([0.5, 2, 2.5, 2, 1.5, 1.5])
-                    r_cols[0].write(str(i+1)); r_cols[1].write(m_nama)
-                    
-                    try: jam_masuk = datetime.strptime(waktu_kirim, '%Y-%m-%d %H:%M:%S').strftime('%H:%M WIB')
-                    except: jam_masuk = ""
-                    r_cols[2].write(f"{tgl}\n{jam_masuk}")
-                    
-                    if r_cols[3].button("👁️ Cek", key=f"cek_ds_{l_id}"):
+                    with st.expander(f"📁 [{stat}] {i+1}. Berkas Mahasiswa: {m_nama} ({tgl})"):
+                        st.write(f"**Mata Kuliah:** {mk} | **Pembimbing Klinik (CI):** {nc}")
+                        
                         ci_data = get_user_data(nc, "Pembimbing Klinik (CI)")
                         pdf_buf = generate_pdf(m_nama, m_nim, tgl, mk, rg, hk, pd.DataFrame(json.loads(k_json)), kasus=kas, 
                                            nama_ci=nc, nip_ci=ci_data[0] if ci_data else "", ttd_ci=ci_data[1] if ci_data else None,
                                            nama_dosen=st.session_state['nama'], nip_dosen=dsn_info[1], ttd_dosen=dsn_info[0])
-                        st.session_state['preview_pdf'] = pdf_buf
-                        st.session_state['preview_filename'] = f"Akhir_{m_nama}.pdf"
-                    
-                    is_valid = r_cols[4].checkbox("Ya (Valid)", value=sudah_selesai, disabled=sudah_selesai, key=f"val_ds_{l_id}")
-                    
-                    with r_cols[5]:
+                        
+                        if st.button("👁️ Tinjau Lembar Berkas TTD CI", key=f"btn_ds_p_{l_id}"):
+                            st.session_state['preview_pdf'] = pdf_buf
+                            st.session_state['preview_filename'] = f"Akhir_{m_nama}.pdf"
+                            st.rerun()
+                            
+                        # REVISI TEXT INPUT & REVISI PERNYATAAN VALIDASI DOSEN
+                        komen_dosen_input = st.text_area("Tambahkan Komentar/Catatan untuk Mahasiswa:", value=existing_kdosen if existing_kdosen else "", disabled=sudah_selesai, key=f"txt_dsn_{l_id}")
+                        is_valid = st.checkbox("Saya menyatakan data logbook ini valid", value=sudah_selesai, disabled=sudah_selesai, key=f"val_ds_{l_id}")
+                        
                         if stat == 'Menunggu Dosen':
-                            if st.button("Finalisasi ➔", type="primary", key=f"fin_{l_id}"):
-                                if not is_valid: st.error("Ceklis 'Ya (Valid)' dahulu!")
+                            if st.button("Finalisasi & Tanda Tangani Berkas ➔", type="primary", key=f"fin_{l_id}"):
+                                if not is_valid: st.error("Ceklis persetujuan validasi terlebih dahulu!")
                                 else:
-                                    c.execute("UPDATE logbooks SET status='Selesai' WHERE id=?", (l_id,)); conn.commit(); st.rerun()
+                                    c.execute("UPDATE logbooks SET status='Selesai', komen_dosen=? WHERE id=?", (komen_dosen_input, l_id))
+                                    conn.commit(); st.success("Logbook selesai divalidasi penuh!"); st.rerun()
                         elif stat == 'Selesai':
-                            if st.button("Batal Finalisasi ✖", key=f"btl_ds_{l_id}"):
+                            if st.button("Batal Finalisasi Akhir ✖", key=f"btl_ds_{l_id}"):
                                 c.execute("UPDATE logbooks SET status='Menunggu Dosen' WHERE id=?", (l_id,)); conn.commit(); st.rerun()
             else: st.info("Belum ada logbook tahap akhir yang masuk.")
 
@@ -594,18 +647,17 @@ else:
     # ==========================================
     if st.session_state.get('preview_pdf') is not None:
         st.markdown("---")
-        st.subheader("👁️ Preview Dokumen")
+        st.subheader("👁️ Preview Dokumen Internal")
         
         col1, col2 = st.columns([1, 5])
         with col1:
             st.download_button("📥 Unduh (Simpan ke Device)", data=st.session_state['preview_pdf'], file_name=st.session_state['preview_filename'], type="primary")
         with col2:
-            if st.button("✖ Tutup Preview", key="tutup_preview_global"):
+            if st.button("✖ Tutup Jendela Preview", key="tutup_preview_global"):
                 st.session_state['preview_pdf'] = None
                 st.rerun()
         
         base64_pdf = base64.b64encode(st.session_state['preview_pdf'].getvalue()).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf" style="border:1px solid #ccc; border-radius:8px;"></iframe>'
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900" type="application/pdf" style="border:2px solid #81c784; border-radius:8px;"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
-
-# streamlit run app5.py
+        
